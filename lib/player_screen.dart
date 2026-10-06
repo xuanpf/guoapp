@@ -185,9 +185,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         (Platform.isAndroid
             ? LunaExoPlayer()
             : Player(
-                configuration: const PlayerConfiguration(
+                configuration: PlayerConfiguration(
                   bufferSize: 32 * 1024 * 1024,
-                  logLevel: MPVLogLevel.error,
+                  logLevel: Platform.isIOS ? MPVLogLevel.debug : MPVLogLevel.error,
                 ),
               ));
     _video = widget.videoBuilder == null && !Platform.isAndroid
@@ -243,7 +243,13 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
     _subscriptions.add(
       _player.stream.log.listen((event) {
-        if (Platform.isIOS && event.text.trim().isNotEmpty) {
+        if (Platform.isIOS && event.text.trim().isNotEmpty &&
+            (event.level == 'error' ||
+                event.level == 'warn' ||
+                event.prefix.contains('ffmpeg') ||
+                event.prefix.contains('lavf') ||
+                event.prefix.contains('demux') ||
+                event.prefix == 'stream')) {
           final message = event.text.trim().replaceAll(
             RegExp(r'https?://[^\s]+'), '<url>');
           DiaryService.add('[Play] mpv ${event.prefix}/${event.level}: $message');
@@ -1057,6 +1063,26 @@ class _PlayerScreenState extends State<PlayerScreen>
         _plan = plan;
         installed = true;
         _acceptErrors = true;
+        if (Platform.isIOS && !plan.local &&
+            Uri.tryParse(plan.url)?.host == '127.0.0.1') {
+          final client = HttpClient()
+            ..connectionTimeout = const Duration(seconds: 5);
+          try {
+            final request = await client.getUrl(Uri.parse(plan.url))
+                .timeout(const Duration(seconds: 8));
+            final response = await request.close()
+                .timeout(const Duration(seconds: 8));
+            final firstChunk = await response.first
+                .timeout(const Duration(seconds: 8));
+            final prefix = utf8.decode(firstChunk.take(32).toList(),
+                allowMalformed: true);
+            DiaryService.add('[Play] 本机流探测: HTTP ${response.statusCode}, type=${response.headers.contentType}, hls=${prefix.startsWith('#EXTM3U')}, bytes=${firstChunk.length}');
+          } catch (error) {
+            DiaryService.add('[Play] 本机流探测失败: $error');
+          } finally {
+            client.close(force: true);
+          }
+        }
         DiaryService.add('[Play] 调用 _player.open: url=${plan.url}, headers=${plan.headers.keys.toList()}');
         await _player.open(
           Media(
