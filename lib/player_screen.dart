@@ -232,9 +232,21 @@ class _PlayerScreenState extends State<PlayerScreen>
     _configurePictureInPicture();
     _subscriptions.add(
       _player.stream.error.listen((error) {
+        if (Platform.isIOS && error.trim().isNotEmpty) {
+          DiaryService.add('[Play] 播放器错误: $error');
+        }
         if (_enhancement.handlePlaybackError(error)) return;
         if (!_closed && _acceptErrors && mounted && error.trim().isNotEmpty) {
           _queueRecovery();
+        }
+      }),
+    );
+    _subscriptions.add(
+      _player.stream.log.listen((event) {
+        if (Platform.isIOS && event.text.trim().isNotEmpty) {
+          final message = event.text.trim().replaceAll(
+            RegExp(r'https?://[^\s]+'), '<url>');
+          DiaryService.add('[Play] mpv ${event.prefix}/${event.level}: $message');
         }
       }),
     );
