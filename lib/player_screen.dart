@@ -1088,8 +1088,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (Platform.isIOS && !plan.local &&
             Uri.tryParse(plan.url)?.host == '127.0.0.1') {
           final client = HttpClient()
-            ..findProxy = (_) => 'DIRECT'
-            ..connectionTimeout = const Duration(seconds: 5);
+            ..connectionTimeout = const Duration(seconds: 5)
+            ..findProxy = (_) => 'DIRECT';
           try {
             final request = await client.getUrl(Uri.parse(plan.url))
                 .timeout(const Duration(seconds: 8));
