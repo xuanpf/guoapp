@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -66,7 +67,9 @@ func newNativeStreamServer(d *Downloader) (*nativeStreamServer, error) {
 	stream.server = server
 	go func() {
 		defer close(stream.serveDone)
-		_ = server.Serve(listener)
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("local playback proxy stopped: %v", err)
+		}
 	}()
 	return stream, nil
 }
@@ -76,8 +79,23 @@ func (stream *nativeStreamServer) nativeAlive() bool {
 	case <-stream.serveDone:
 		return false
 	default:
-		return true
 	}
+	connection, err := net.DialTimeout("tcp4", strings.TrimPrefix(stream.address, "http://"), time.Second)
+	if err != nil {
+		return false
+	}
+	_ = connection.Close()
+	return true
+}
+
+func (stream *nativeStreamServer) nativeClose() {
+	_ = stream.server.Close()
+	stream.mu.Lock()
+	for token, session := range stream.sessions {
+		session.cancel()
+		delete(stream.sessions, token)
+	}
+	stream.mu.Unlock()
 }
 
 func (stream *nativeStreamServer) nativeOpen(media providerMedia) (string, string) {
