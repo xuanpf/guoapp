@@ -45,6 +45,7 @@ type nativeStreamServer struct {
 	address    string
 	sessions   map[string]*nativeStreamSession
 	server     *http.Server
+	serveDone  chan struct{}
 }
 
 func (stream *nativeStreamServer) nativeRequest(request *http.Request) (*http.Response, error) {
@@ -60,11 +61,23 @@ func newNativeStreamServer(d *Downloader) (*nativeStreamServer, error) {
 	if err != nil {
 		return nil, errors.New("无法初始化本机播放器")
 	}
-	stream := &nativeStreamServer{downloader: d, address: "http://" + listener.Addr().String(), sessions: map[string]*nativeStreamSession{}}
+	stream := &nativeStreamServer{downloader: d, address: "http://" + listener.Addr().String(), sessions: map[string]*nativeStreamSession{}, serveDone: make(chan struct{})}
 	server := &http.Server{Handler: http.HandlerFunc(stream.nativeServe), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16384}
 	stream.server = server
-	go func() { _ = server.Serve(listener) }()
+	go func() {
+		defer close(stream.serveDone)
+		_ = server.Serve(listener)
+	}()
 	return stream, nil
+}
+
+func (stream *nativeStreamServer) nativeAlive() bool {
+	select {
+	case <-stream.serveDone:
+		return false
+	default:
+		return true
+	}
 }
 
 func (stream *nativeStreamServer) nativeOpen(media providerMedia) (string, string) {
