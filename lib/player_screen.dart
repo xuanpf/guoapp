@@ -909,6 +909,19 @@ class _PlayerScreenState extends State<PlayerScreen>
     return next;
   }
 
+  Future<void> _checkLocalProxy(PlaybackPlan plan) async {
+    final uri = Uri.tryParse(plan.url);
+    if (!Platform.isIOS || plan.local || uri?.host != '127.0.0.1') {
+      return;
+    }
+    final socket = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      uri!.port,
+      timeout: const Duration(seconds: 2),
+    );
+    socket.destroy();
+  }
+
   Future<void> _play(
     int index, {
     double position = 0,
@@ -1008,27 +1021,27 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (prepared == null) {
         return;
       }
-      if (Platform.isIOS && !prepared.local &&
-          Uri.tryParse(prepared.url)?.host == '127.0.0.1') {
+      try {
+        await _checkLocalProxy(prepared);
+      } catch (error) {
+        DiaryService.add('[Play] 本机代理端口失效，重新解析播放: $error');
+        await widget.repository.release(prepared.session);
+        if (_closed || ticket != _generation) return;
+        prepared = await _loader.load(
+          widget.detail.drama,
+          widget.detail.episodes[index],
+          quality: _requestedQuality,
+          localOnly: widget.localOnly,
+          online: _forceOnline,
+        );
+        if (prepared == null) return;
         try {
-          final uri = Uri.parse(prepared.url);
-          final socket = await Socket.connect(
-            InternetAddress.loopbackIPv4, uri.port,
-            timeout: const Duration(seconds: 2),
-          );
-          socket.destroy();
+          await _checkLocalProxy(prepared);
         } catch (error) {
-          DiaryService.add('[Play] 本机代理端口失效，重新解析播放: $error');
-          await widget.repository.release(prepared.session);
-          prepared = await _loader.load(
-            widget.detail.drama,
-            widget.detail.episodes[index],
-            quality: _requestedQuality,
-            localOnly: widget.localOnly,
-            online: _forceOnline,
-          );
-          if (prepared == null) return;
+          DiaryService.add('[Play] 本机代理重建后仍不可用: $error');
+          throw AppFailure('本机播放代理恢复失败，请重试或重新打开应用。');
         }
+        DiaryService.add('[Play] 本机代理已恢复，继续当前集');
       }
       final plan = prepared;
       await _serialize(() async {
@@ -1095,11 +1108,20 @@ class _PlayerScreenState extends State<PlayerScreen>
                 .timeout(const Duration(seconds: 8));
             final response = await request.close()
                 .timeout(const Duration(seconds: 8));
+            if (response.statusCode != HttpStatus.ok &&
+                response.statusCode != HttpStatus.partialContent) {
+              throw AppFailure('本机播放代理返回 HTTP ${response.statusCode}，正在尝试恢复。');
+            }
             final firstChunk = await response.first
                 .timeout(const Duration(seconds: 8));
             final prefix = utf8.decode(firstChunk.take(32).toList(),
                 allowMalformed: true);
             DiaryService.add('[Play] 本机流探测: HTTP ${response.statusCode}, type=${response.headers.contentType}, hls=${prefix.startsWith('#EXTM3U')}, bytes=${firstChunk.length}');
+          } on AppFailure {
+            rethrow;
+          } on SocketException catch (error) {
+            DiaryService.add('[Play] 本机流探测连接失败: $error');
+            throw AppFailure('本机播放代理连接失败，正在尝试恢复。');
           } catch (error) {
             DiaryService.add('[Play] 本机流探测失败: $error');
           } finally {
