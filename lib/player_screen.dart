@@ -1008,6 +1008,28 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (prepared == null) {
         return;
       }
+      if (Platform.isIOS && !prepared.local &&
+          Uri.tryParse(prepared.url)?.host == '127.0.0.1') {
+        try {
+          final uri = Uri.parse(prepared.url);
+          final socket = await Socket.connect(
+            InternetAddress.loopbackIPv4, uri.port,
+            timeout: const Duration(seconds: 2),
+          );
+          socket.destroy();
+        } catch (error) {
+          DiaryService.add('[Play] 本机代理端口失效，重新解析播放: $error');
+          await widget.repository.release(prepared.session);
+          prepared = await _loader.load(
+            widget.detail.drama,
+            widget.detail.episodes[index],
+            quality: _requestedQuality,
+            localOnly: widget.localOnly,
+            online: _forceOnline,
+          );
+          if (prepared == null) return;
+        }
+      }
       final plan = prepared;
       await _serialize(() async {
         if (_closed || ticket != _generation) {
@@ -1066,6 +1088,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (Platform.isIOS && !plan.local &&
             Uri.tryParse(plan.url)?.host == '127.0.0.1') {
           final client = HttpClient()
+            ..findProxy = (_) => 'DIRECT'
             ..connectionTimeout = const Duration(seconds: 5);
           try {
             final request = await client.getUrl(Uri.parse(plan.url))
