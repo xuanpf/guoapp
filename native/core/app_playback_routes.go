@@ -86,15 +86,21 @@ func (engine *nativeEngine) nativeOpenPlayback(ctx context.Context, choice nativ
 	choice.streamSession = ""
 	{
 		engine.mu.Lock()
-		if engine.stream == nil || !engine.stream.nativeAlive() {
+		if engine.stream != nil && !engine.stream.nativeAlive() {
+			engine.stream.nativeClose()
+			engine.stream = nil
+		}
+		if engine.stream == nil {
 			engine.stream, err = newNativeStreamServer(engine.downloader)
 		}
 		stream := engine.stream
+		if err == nil {
+			plan.URL, choice.streamSession = stream.nativeOpen(media)
+		}
 		engine.mu.Unlock()
 		if err != nil {
 			return nativePlan{}, err
 		}
-		plan.URL, choice.streamSession = stream.nativeOpen(media)
 	}
 	choice.created = time.Now()
 	engine.mu.Lock()
