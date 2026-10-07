@@ -6,6 +6,12 @@ on:
     branches: [main]
     paths:
       - .github/workflows/build-ios.yml
+      - lib/**
+      - native/**
+      - ios/**
+      - scripts/build_ios.py
+      - pubspec.yaml
+      - pubspec.lock
 
 permissions:
   contents: read
@@ -30,6 +36,10 @@ jobs:
           cache: true
       - name: Resolve Flutter dependencies
         run: flutter pub get
+      - name: Format changed playback sources
+        run: |
+          gofmt -w native/core/app_stream.go native/core/app_playback_routes.go
+          dart format lib/player_screen.dart
       - name: Build unsigned iOS app
         run: python3 scripts/build_ios.py --all-sources
       - uses: actions/upload-artifact@v4
