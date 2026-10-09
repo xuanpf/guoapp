@@ -240,6 +240,7 @@ class _PlayerControlsState extends State<PlayerControls> {
                 widget.interactions.pointerDown(
                   event,
                   swipeEnabled: widget.swipeEnabled,
+                  fullscreen: widget.fullscreen,
                   width: constraints.maxWidth,
                   height: constraints.maxHeight,
                 );
