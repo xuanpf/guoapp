@@ -188,14 +188,14 @@ class _PlayerScreenState extends State<PlayerScreen>
             : Player(
                 configuration: PlayerConfiguration(
                   bufferSize: 32 * 1024 * 1024,
-                  logLevel: Platform.isIOS ? MPVLogLevel.debug : MPVLogLevel.error,
+                  logLevel: MPVLogLevel.error,
                 ),
               ));
     _video = widget.videoBuilder == null && !Platform.isAndroid
         ? VideoController(
             _player,
             configuration: VideoControllerConfiguration(
-              enableHardwareAcceleration: !Platform.isIOS,
+              enableHardwareAcceleration: true,
             ),
           )
         : null;
