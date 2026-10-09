@@ -195,7 +195,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         ? VideoController(
             _player,
             configuration: VideoControllerConfiguration(
-              enableHardwareAcceleration: true,
+              enableHardwareAcceleration: !Platform.isIOS,
             ),
           )
         : null;
@@ -1056,6 +1056,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
         final platform = _player.platform;
         if (platform is NativePlayer) {
+          if (Platform.isIOS) {
+            await platform.setProperty('hwdec', 'videotoolbox-copy');
+          }
           if (Platform.isAndroid) {
             if (_television) {
               await platform.setProperty('hwdec', 'mediacodec');
