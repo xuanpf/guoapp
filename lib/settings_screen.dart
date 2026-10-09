@@ -175,6 +175,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: _chooseTheme,
               ),
+              SwitchListTile(
+                key: const ValueKey('brightness-gesture-setting'),
+                secondary: const Icon(Icons.brightness_6_outlined),
+                title: const Text('左侧上下滑动调节亮度'),
+                subtitle: const Text('轻点不会显示亮度条'),
+                value: widget.store.playbackPreferences.brightnessGesture,
+                onChanged: (value) => saveUserChange(
+                  context,
+                  () => widget.store.setPlaybackPreferences(
+                    widget.store.playbackPreferences.copyWith(brightnessGesture: value),
+                  ),
+                ),
+              ),
               ListTile(
                 leading: const Icon(Icons.people_outline),
                 title: const Text('用户管理'),

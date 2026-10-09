@@ -155,7 +155,13 @@ class _PlayerControlsState extends State<PlayerControls> {
   }
 
   void _interactionChanged() {
-    if (mounted && widget.interactions.feedback.isNotEmpty) _show();
+    if (!mounted) return;
+    if (widget.interactions.hudState.type == SwipeAction.seek) {
+      setState(() => _visible = true);
+      _scheduleHide();
+    } else if (widget.interactions.feedback.isNotEmpty) {
+      _show();
+    }
   }
 
   void _scheduleHide() {
@@ -213,7 +219,9 @@ class _PlayerControlsState extends State<PlayerControls> {
   Widget build(BuildContext context) {
     final state = widget.player.state;
     final duration = state.duration.inMilliseconds / 1000;
-    final position = state.position.inMilliseconds / 1000;
+    final position = widget.interactions.hudState.type == SwipeAction.seek
+        ? (widget.interactions.seekPreview ?? state.position).inMilliseconds / 1000
+        : state.position.inMilliseconds / 1000;
     final buffered = state.buffer.inMilliseconds / 1000;
     final visible =
         _visible || !state.playing || state.buffering || widget.panelOpen;
