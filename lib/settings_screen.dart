@@ -188,6 +188,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ),
+              SwitchListTile(
+                key: const ValueKey('preload-setting'),
+                secondary: const Icon(Icons.skip_next_rounded),
+                title: const Text('下一集预加载'),
+                subtitle: const Text('当前集临近结束时准备下一集'),
+                value: widget.store.playbackPreferences.preload,
+                onChanged: (value) => saveUserChange(
+                  context,
+                  () => widget.store.setPlaybackPreferences(
+                    widget.store.playbackPreferences.copyWith(preload: value),
+                  ),
+                ),
+              ),
               ListTile(
                 leading: const Icon(Icons.people_outline),
                 title: const Text('用户管理'),

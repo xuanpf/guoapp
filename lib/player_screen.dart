@@ -175,7 +175,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _requestedQuality = preferences.quality;
     _autoAdvance = true;
     _danmakuEnabled = preferences.danmaku;
-    _preloadEnabled = true;
+    _preloadEnabled = preferences.preload;
     _loader = PlaybackLoader(widget.repository);
     _preloader = PlaybackPreloader(widget.repository);
     _danmaku = DanmakuController(widget.repository)
@@ -697,7 +697,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final position = state.position.inMilliseconds;
     if (duration <= 0 ||
         position < 2000 ||
-        (position < duration ~/ 2 && duration - position > 45000) ||
+        duration - position > 45000 ||
         state.buffer.inMilliseconds - position < 5000) {
       return;
     }
@@ -946,18 +946,24 @@ class _PlayerScreenState extends State<PlayerScreen>
       widget.handoff?.fail('接收端已更换播放内容');
     }
     if (index != _index) _forceOnline = false;
+    final ticket = ++_generation;
     final warmed =
         handoffPlan ??
         (recoveryAction == null && _preloadEnabled && !widget.localOnly
-            ? _preloader.take(
+            ? await _preloader.takeAsync(
                 widget.detail.drama,
                 widget.detail.episodes[index],
                 quality: _requestedQuality,
                 online: _forceOnline,
               )
             : null);
+    if (_closed || ticket != _generation) {
+      if (warmed != null && !identical(warmed, handoffPlan)) {
+        await widget.repository.release(warmed.session);
+      }
+      return;
+    }
     _preloader.clear();
-    final ticket = ++_generation;
     _enhancement.suspend();
     _seekSequence++;
     _danmaku.setPlan(null);
@@ -1277,10 +1283,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       throw StateError('当前用户已变更');
     }
     _interactions.cancel();
-    final nextPreferences = preferences.copyWith(
-      autoAdvance: true,
-      preload: true,
-    );
+    final nextPreferences = preferences.copyWith(autoAdvance: true);
     await widget.store.setPlaybackPreferences(nextPreferences);
     if (!mounted || _closed || widget.store.profileEpoch != _profileEpoch)
       return;
@@ -1291,7 +1294,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _requestedQuality = nextPreferences.quality;
       _autoAdvance = true;
       _danmakuEnabled = nextPreferences.danmaku;
-      _preloadEnabled = true;
+      _preloadEnabled = nextPreferences.preload;
     });
     _danmaku.setEnabled(_danmakuEnabled);
     _syncDanmaku();
@@ -1518,7 +1521,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           quality: selection.quality,
           autoAdvance: true,
           danmaku: selection.danmaku,
-          preload: true,
+          preload: selection.preload,
           enhancement: selection.enhancement,
         ),
       );

@@ -14,6 +14,8 @@ class PlaybackPreloader extends ChangeNotifier {
   PlaybackPlan? _ready;
   String? _identity;
   Timer? _delay;
+  Completer<void>? _pending;
+  bool _claimed = false;
   DateTime _expires = DateTime(2000), _retryAt = DateTime(2000);
   int _generation = 0;
   bool _closed = false, loading = false;
@@ -61,6 +63,7 @@ class PlaybackPreloader extends ChangeNotifier {
       return;
     }
     final ticket = _generation;
+    final pending = _pending = Completer<void>();
     _delay = Timer(const Duration(milliseconds: 600), () async {
       _delay = null;
       loading = true;
@@ -98,6 +101,7 @@ class PlaybackPreloader extends ChangeNotifier {
         error = failure.toString();
         _retryAt = _now().add(const Duration(seconds: 30));
       } finally {
+        if (!pending.isCompleted) pending.complete();
         if (!_closed && ticket == _generation) {
           loading = false;
           notifyListeners();
@@ -123,11 +127,29 @@ class PlaybackPreloader extends ChangeNotifier {
     return result;
   }
 
+  Future<PlaybackPlan?> takeAsync(
+    Drama drama,
+    Episode episode, {
+    int quality = 0,
+    bool online = false,
+  }) async {
+    if (_identity != _key(drama, episode, quality, online) || _claimed) {
+      return take(drama, episode, quality: quality, online: online);
+    }
+    _claimed = true;
+    final pending = _pending;
+    if (pending != null) await pending.future;
+    return take(drama, episode, quality: quality, online: online);
+  }
+
   void pause() {
     final changed = loading || _delay != null;
     _generation++;
     _delay?.cancel();
     _delay = null;
+    final pending = _pending;
+    _pending = null;
+    if (pending != null && !pending.isCompleted) pending.complete();
     if (loading) {
       unawaited(repository.cancelPreload().catchError((Object _) {}));
     }
@@ -140,6 +162,7 @@ class PlaybackPreloader extends ChangeNotifier {
     final old = _ready;
     _ready = null;
     _identity = null;
+    _claimed = false;
     _retryAt = DateTime(2000);
     error = '';
     if (old != null) _release(old);
