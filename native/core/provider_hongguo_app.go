@@ -127,6 +127,17 @@ func hongguoCatalogHasMore(state *hongguoCatalogState) bool {
 	return false
 }
 
+func hongguoResponseDiagnostic(response *http.Response, path string, attempt int, bodyBytes int) string {
+	if response == nil {
+		return fmt.Sprintf("path=%s attempt=%d response=nil", path, attempt)
+	}
+	return fmt.Sprintf("path=%s attempt=%d status=%d body_bytes=%d content_length=%d content_type=%q encoding=%q request_id=%q",
+		path, attempt, response.StatusCode, bodyBytes, response.ContentLength,
+		truncate(response.Header.Get("Content-Type"), 80),
+		truncate(response.Header.Get("Content-Encoding"), 40),
+		truncate(firstNonEmpty(response.Header.Get("X-Tt-Logid"), response.Header.Get("X-Request-Id"), response.Header.Get("X-Tt-Traceid")), 100))
+}
+
 func (downloader *Downloader) hongguoAppRequest(ctx context.Context, method, path string, extra url.Values, payload any) (map[string]any, error) {
 	client := downloader.hongguoClient()
 	client.mu.Lock()
@@ -193,11 +204,11 @@ func (downloader *Downloader) hongguoAppRequest(ctx context.Context, method, pat
 			prepared.URL.RawQuery = query.Encode()
 			if comment {
 				signHongguoCommentRequest(prepared, commentNonce, now)
-			} else {
-				// Player endpoints now require Argus551 + Ladon on top of
-				// X-Gorgon; without them /novel/player/video_model/v1/ and
-				// /novel/player/video_detail/v1/ return empty bodies or 110001.
+			} else if path == "/novel/player/video_model/v1/" || path == "/novel/player/video_detail/v1/" {
+				// These player endpoints additionally require Argus/Ladon.
 				signHongguoPlayerRequest(prepared, body, now, installID)
+			} else {
+				signHongguoRequest(prepared, body, now)
 			}
 		})
 		if err != nil {
@@ -211,24 +222,24 @@ func (downloader *Downloader) hongguoAppRequest(ctx context.Context, method, pat
 		content, readErr := io.ReadAll(io.LimitReader(response.Body, providerMaxBodyBytes+1))
 		response.Body.Close()
 		if readErr != nil {
-			lastErr = readErr
+			lastErr = fmt.Errorf("红果 App 接口读取响应失败（%s）：%w", hongguoResponseDiagnostic(response, path, attempt+1, len(content)), readErr)
 			continue
 		}
 		if response.StatusCode != http.StatusOK {
-			lastErr = fmt.Errorf("红果 App 接口 HTTP %d", response.StatusCode)
+			lastErr = fmt.Errorf("红果 App 接口 HTTP 错误（%s）", hongguoResponseDiagnostic(response, path, attempt+1, len(content)))
 			if response.StatusCode >= 400 && response.StatusCode < 500 {
 				return nil, lastErr
 			}
 			continue
 		}
 		if len(content) == 0 || len(content) > providerMaxBodyBytes {
-			return nil, errors.New("红果 App 接口未返回有效数据")
+			return nil, fmt.Errorf("红果 App 接口未返回有效数据（%s）", hongguoResponseDiagnostic(response, path, attempt+1, len(content)))
 		}
 		var result map[string]any
 		decoder := json.NewDecoder(bytes.NewReader(content))
 		decoder.UseNumber()
 		if err := decoder.Decode(&result); err != nil || result == nil {
-			return nil, errors.New("红果 App 接口返回格式异常")
+			return nil, fmt.Errorf("红果 App 接口返回格式异常（%s）", hongguoResponseDiagnostic(response, path, attempt+1, len(content)))
 		}
 		code := firstNonEmpty(mapString(result, "code", "Code", "status_code"), mapString(nestedMap(result, "BaseResp"), "StatusCode"))
 		if code != "" && code != "0" {

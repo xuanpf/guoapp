@@ -63,6 +63,22 @@ func TestHongguoDanmakuPreservesSourceTimeline(t *testing.T) {
 	}
 }
 
+func TestHongguoEmptyResponseIncludesSafeDiagnostics(t *testing.T) {
+	d := rankingTestDownloader(t, func(request *http.Request) (*http.Response, error) {
+		response := rankingHTTPResponse(request, http.StatusOK, "")
+		response.Header.Set("Content-Type", "application/json")
+		response.Header.Set("X-Tt-Logid", "trace-123")
+		return response, nil
+	})
+	_, err := d.hongguoAppRequest(context.Background(), http.MethodPost, "/novel/player/video_model/v1/", nil, map[string]string{"series_id": danmakuTestSeries})
+	if err == nil || !strings.Contains(err.Error(), "body_bytes=0") || !strings.Contains(err.Error(), "request_id=\"trace-123\"") {
+		t.Fatalf("missing safe response diagnostics: %v", err)
+	}
+	if strings.Contains(err.Error(), "series_id") {
+		t.Fatalf("diagnostics unexpectedly included request payload: %v", err)
+	}
+}
+
 func TestHongguoDanmakuRejectsMalformedWindowsAndBoundsText(t *testing.T) {
 	for _, result := range []map[string]any{nil, {"data": map[string]any{"data_list": []any{}}}, danmakuTestResult(0, []any{}), danmakuTestResult(danmakuMaxDurationMS+1, []any{})} {
 		if _, err := parseHongguoDanmaku(result, danmakuTestVideo, 0, 160000); err == nil {
