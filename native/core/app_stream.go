@@ -126,7 +126,7 @@ func (stream *nativeStreamServer) nativeOpen(media providerMedia) (string, strin
 	stream.sessions[token] = session
 	stream.mu.Unlock()
 	entry := nativeStreamAsset{address: media.URL, contentType: "video/mp4"}
-	isHLS := media.Playlist != "" || len(media.HLSKey) > 0
+	isHLS := media.Playlist != ""
 	if parsed, err := url.Parse(media.URL); err == nil && strings.EqualFold(path.Ext(parsed.Path), ".m3u8") {
 		isHLS = true
 	}
@@ -332,12 +332,17 @@ func (stream *nativeStreamServer) nativeServe(writer http.ResponseWriter, reques
 	if response.Request != nil && response.Request.URL != nil {
 		finalURL = response.Request.URL
 	}
-	playlist := strings.Contains(strings.ToLower(asset.contentType), "mpegurl") || strings.Contains(contentType, "mpegurl") || strings.EqualFold(path.Ext(finalURL.Path), ".m3u8")
+	contentIsMP4 := strings.Contains(contentType, "video/mp4")
+	playlist := strings.Contains(contentType, "mpegurl") ||
+		(strings.EqualFold(path.Ext(finalURL.Path), ".m3u8") && !contentIsMP4)
 	reader := bufio.NewReader(response.Body)
-	if !playlist && request.Method == http.MethodGet {
+	if request.Method == http.MethodGet {
+		// The body signature is authoritative, even for mislabelled CDN replies.
 		peek, _ := reader.Peek(512)
 		if strings.HasPrefix(strings.TrimSpace(strings.TrimPrefix(string(peek), "\ufeff")), "#EXTM3U") {
 			playlist = true
+		} else if len(peek) > 0 {
+			playlist = false
 		}
 	}
 	if playlist && request.Method == http.MethodHead {
