@@ -3,7 +3,7 @@ name: Build iOS unsigned
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'fix/hongguo-playback-20261023']
     paths:
       - .github/workflows/build-ios.yml
       - lib/**
