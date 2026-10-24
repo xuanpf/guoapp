@@ -534,9 +534,16 @@ func (downloader *Downloader) resolveHongguoMultiAppMedia(ctx context.Context, v
 	if err != nil {
 		return providerMedia{}, err
 	}
-	model, err := hongguoVideoModel(entry)
-	if err != nil {
-		return providerMedia{}, err
+	model, _ := entry["video_model"].(map[string]any)
+	if encoded, ok := entry["video_model"].(string); ok && encoded != "" {
+		decoder := json.NewDecoder(strings.NewReader(encoded))
+		decoder.UseNumber()
+		if err := decoder.Decode(&model); err != nil {
+			return providerMedia{}, errors.New("红果 App 播放信息格式异常")
+		}
+	}
+	if model == nil {
+		return providerMedia{}, errors.New("红果 App 未返回播放信息")
 	}
 	fallback := hongguoParseFallback(model["fallback_api"])
 	if fallback == "" {
