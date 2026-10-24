@@ -16,6 +16,13 @@ func (downloader *Downloader) resolveHongguoAppMedia(ctx context.Context, videoI
 	if !hongguoNumericID.MatchString(videoID) {
 		return providerMedia{}, errors.New("红果视频 ID 无效")
 	}
+	// Current service responses reject legacy video_model with an empty body;
+	// try the upstream multi_video_model + fallback_api flow first.
+	if media, err := downloader.resolveHongguoMultiAppMedia(ctx, videoID); err == nil {
+		return media, nil
+	} else if ctx.Err() != nil {
+		return providerMedia{}, ctx.Err()
+	}
 	payload := map[string]any{
 		"video_id": videoID, "content_type": 1,
 		"biz_param": map[string]any{"need_all_video_definition": true, "video_platform": 3},
