@@ -233,7 +233,10 @@ func (downloader *Downloader) hongguoAppRequest(ctx context.Context, method, pat
 			continue
 		}
 		if len(content) == 0 || len(content) > providerMaxBodyBytes {
-			return nil, fmt.Errorf("红果 App 接口未返回有效数据（%s）", hongguoResponseDiagnostic(response, path, attempt+1, len(content)))
+			lastErr = fmt.Errorf("红果 App 接口未返回有效数据（%s）", hongguoResponseDiagnostic(response, path, attempt+1, len(content)))
+			// Empty bodies from the player endpoint can be transient at the edge.
+			// Use the configured bounded retries before falling back to web/API.
+			continue
 		}
 		var result map[string]any
 		decoder := json.NewDecoder(bytes.NewReader(content))
