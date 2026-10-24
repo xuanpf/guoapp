@@ -74,9 +74,7 @@ func selectHongguoAppMedia(model map[string]any) (providerMedia, error) {
 		variant, _ := row.(map[string]any)
 		meta := nestedMap(variant, "video_meta")
 		codec := strings.ToLower(mapString(meta, "codec_type"))
-		if codec == "bytevc2" || strings.Contains(strings.ToLower(mapString(variant, "gear_des_key")), "bytevc2") {
-			continue
-		}
+		isByteVC := codec == "bytevc1" || codec == "bytevc2"
 		addresses := hongguoMediaAddresses(variant)
 		if len(addresses) == 0 {
 			continue
@@ -102,6 +100,12 @@ func selectHongguoAppMedia(model map[string]any) (providerMedia, error) {
 		quality := height * 10
 		if codec == "h264" || codec == "avc1" {
 			quality++
+		}
+		// The fork's bundled decoders may not support ByteVC. Keep these streams
+		// as a last resort for devices that can decode them natively.
+		if isByteVC {
+			media.Quality = 0
+			quality -= 100000
 		}
 		for _, address := range addresses {
 			media.URL = address

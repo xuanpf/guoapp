@@ -34,6 +34,7 @@ func TestHongguoBackupAddressesAndCodecAlternatives(t *testing.T) {
 	want := []string{
 		"https://media.test/main.mp4?token=a%2Fb", "https://backup.test/main.mp4?token=unchanged",
 		"https://third.test/main.mp4", "https://media.test/hevc.mp4", "https://media.test/low.mp4",
+		"https://media.test/unsupported.mp4", "https://backup.test/unsupported.mp4",
 	}
 	if !reflect.DeepEqual(addresses, want) || !reflect.DeepEqual(choices.qualities, []int{1080, 720}) {
 		t.Fatalf("wrong fallback order: %+v; qualities=%v", addresses, choices.qualities)

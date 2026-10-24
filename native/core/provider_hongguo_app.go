@@ -19,6 +19,10 @@ const hongguoAppBaseURL = "https://api5-normal-sinfonlineb.fqnovel.com"
 
 const hongguoAppUserAgent = "com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)"
 
+// Older 红果 builds can expose a different set of decoder-compatible streams.
+// Keep the current UA as the normal path and use this only for the last retry.
+const hongguoAppFallbackUserAgent = "com.phoenix.read/70000 (Linux; U; Android 12; zh_CN; PFZM10; Build/SP1A.210812.016; Cronet/TTNetVersion:04270129 2024-01-15 QuicVersion:5e92d3a0 2023-08-23)"
+
 type hongguoCatalogCursor struct {
 	Offset        int       `json:"offset"`
 	SessionID     string    `json:"sessionId,omitempty"`
@@ -181,7 +185,11 @@ func (downloader *Downloader) hongguoAppRequest(ctx context.Context, method, pat
 		if err != nil {
 			return nil, err
 		}
-		request.Header.Set("User-Agent", hongguoAppUserAgent)
+		userAgent := hongguoAppUserAgent
+		if attempt == attempts-1 && attempts > 1 {
+			userAgent = hongguoAppFallbackUserAgent
+		}
+		request.Header.Set("User-Agent", userAgent)
 		request.Header.Set("Accept", "application/json")
 		request.Header.Set("X-XS-From-Web", "0")
 		request.Header.Set("Sdk-Version", "2")
