@@ -351,10 +351,12 @@ func hongguoCodecRank(codec string) int {
 	switch codec {
 	case "h264", "avc", "avc1":
 		return 0
-	case "hevc", "h265", "hvc1", "hev1", "bytevc1":
+	case "hevc", "h265", "hvc1", "hev1":
 		return 1
+	case "bytevc1", "bytevc2":
+		return 2
 	}
-	return 2
+	return 3
 }
 
 // hongguoQualityPixels 取字符串里第一组数字；无则 0。
@@ -478,7 +480,7 @@ func selectHongguoFallbackMedia(info map[string]any) (providerMedia, error) {
 	var keyErr error
 	rows := hongguoFallbackRows(videoList)
 	for _, row := range rows {
-		if row.codecRank >= 2 {
+		if row.codecRank >= 3 {
 			continue
 		}
 		spade := firstNonEmpty(mapString(row.item, "spade_a"), mapString(nestedMap(row.item, "encrypt_info"), "spade_a"))

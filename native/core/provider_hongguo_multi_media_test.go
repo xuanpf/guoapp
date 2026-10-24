@@ -145,6 +145,19 @@ func TestSelectHongguoFallbackMediaPrefersH264(t *testing.T) {
 	}
 }
 
+func TestSelectHongguoFallbackMediaKeepsByteVCAsLastResort(t *testing.T) {
+	info := map[string]any{"video_list": map[string]any{
+		"bytevc": map[string]any{
+			"main_url": "https://v5-reading-video-c.qznovelvod.com/bytevc",
+			"codec_type": "bytevc2", "definition": "2160p",
+		},
+	}}
+	media, err := selectHongguoFallbackMedia(info)
+	if err != nil || !strings.Contains(media.URL, "/bytevc") {
+		t.Fatalf("ByteVC should remain available as a last-resort route: %+v %v", media, err)
+	}
+}
+
 func TestSelectHongguoFallbackMediaDecryptsAndSkipsBadCandidates(t *testing.T) {
 	seed := []byte("0123456789abcdef0123456789abcdef")
 	encrypted := hongguoEncryptSpadeURLForTest(t, "https://v26-reading-videocdn302.qznovelvod.com/enc/1080p", seed)
