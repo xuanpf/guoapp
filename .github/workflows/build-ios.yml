@@ -8,6 +8,8 @@ on:
       - .github/workflows/build-ios.yml
       - lib/**
       - native/**
+      - native/core/provider_hongguo_multi_media.go
+      - native/core/provider_hongguo_pure_sign.go
       - ios/**
       - scripts/build_ios.py
       - pubspec.yaml
